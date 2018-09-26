@@ -60,9 +60,35 @@ namespace Workforce.Controllers
         }
 
         // GET: Instructor/Details/5
-        public ActionResult Details(int id)
+        public async Task<IActionResult> Details(int? id)
         {
-            return View();
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            string sql = $@"
+            select
+                i.Id,
+                i.FirstName,
+                i.LastName,
+                i.SlackHandle,
+                i.Specialty
+            from Instructor i
+            WHERE i.Id = {id}";
+
+            using (IDbConnection conn = Connection)
+            {
+
+                Instructor instructor = (await conn.QueryAsync<Instructor>(sql)).Single();
+
+                if (instructor == null)
+                {
+                    return NotFound();
+                }
+
+                return View(instructor);
+            }
         }
 
         // GET: Instructor/Create
@@ -94,42 +120,119 @@ namespace Workforce.Controllers
         // POST: Instructor/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Create(IFormCollection collection)
+        public async Task<IActionResult> Create(Instructor instructor)
         {
-            try
+            if (ModelState.IsValid)
             {
-                // TODO: Add insert logic here
+                string sql = $@"
+                                INSERT INTO Instructor
+                                (FirstName, LastName, SlackHandle, Specialty, CohortId)
+                                VALUES
+                                ('{instructor.FirstName}'
+                                , '{instructor.LastName}'
+                                , '{instructor.SlackHandle}'
+                                , '{instructor.Specialty}'
+                                , {instructor.CohortId}
+                                )
+                                ;";
 
-                return RedirectToAction(nameof(Index));
+                using (IDbConnection conn = Connection)
+                {
+                    int rowsAffected = await conn.ExecuteAsync(sql);
+
+                    if (rowsAffected > 0)
+                    {
+                        return RedirectToAction(nameof(Index));
+                    }
+                }
             }
-            catch
+
+            // ModelState was invalid, or saving the Student data failed. Show the form again.
+            using (IDbConnection conn = Connection)
             {
-                return View();
+                //IEnumerable<Cohort> cohorts = (await conn.QueryAsync<Cohort>("SELECT Id, Name FROM Cohort")).ToList();
+                // ViewData["CohortId"] = new SelectList (cohorts, "Id", "Name", student.CohortId);
+                ViewData["CohortId"] = await CohortList(instructor.CohortId);
+                return View(instructor);
             }
         }
 
         // GET: Instructor/Edit/5
-        public ActionResult Edit(int id)
+        public async Task<IActionResult> Edit(int? id)
         {
-            return View();
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            string sql = $@"
+                SELECT
+                    i.Id,
+                    i.FirstName,
+                    i.LastName,
+                    i.SlackHandle,
+                    i.Specialty,
+                    i.CohortId,
+                    c.Id,
+                    c.Name
+                FROM Instructor i
+                JOIN Cohort c on i.CohortId = c.Id
+                WHERE i.Id = {id}";
+
+            using (IDbConnection conn = Connection)
+            {
+                InstructorEditViewModel model = new InstructorEditViewModel(_config);
+
+                model.Instructor = (await conn.QueryAsync<Instructor, Cohort, Instructor>(
+                    sql,
+                    (instructor, cohort) => {
+                        instructor.Cohort = cohort;
+                        return instructor;
+                    }
+                )).Single();
+
+                return View(model);
+            }
         }
 
         // POST: Instructor/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Edit(int id, IFormCollection collection)
+        public async Task<IActionResult> Edit(int id, InstructorEditViewModel model)
         {
-            try
+            if (id != model.Instructor.Id)
             {
-                // TODO: Add update logic here
+                return NotFound();
+            }
 
-                return RedirectToAction(nameof(Index));
-            }
-            catch
+            if (ModelState.IsValid)
             {
-                return View();
+                string sql = $@"UPDATE Instructor
+                                        SET FirstName = '{model.Instructor.FirstName}',
+                                            LastName = '{model.Instructor.LastName}',
+                                            SlackHandle = '{model.Instructor.SlackHandle}',
+                                            Specialty = '{model.Instructor.Specialty}',
+                                            CohortId = {model.Instructor.CohortId}
+                                            WHERE Id = {id};";
+
+                using (IDbConnection conn = Connection)
+                {
+
+
+                    int rowsAffected = await conn.ExecuteAsync(sql);
+                    if (rowsAffected > 0)
+                    {
+                        return RedirectToAction(nameof(Index));
+                    }
+                    throw new Exception("No rows affected");
+                }
             }
-        }
+            else
+            {
+                return new StatusCodeResult(StatusCodes.Status406NotAcceptable);
+            }
+         }
+
 
         // GET: Instructor/Delete/5
         public ActionResult Delete(int id)

@@ -76,7 +76,7 @@ namespace Workforce.Controllers {
 
             using (IDbConnection conn = Connection) {
 
-                Student student = (await conn.QueryAsync<Student> (sql)).ToList ().Single ();
+                Student student = (await conn.QueryAsync<Student>(sql)).ToList().Single();
 
                 if (student == null) {
                     return NotFound ();
@@ -117,15 +117,14 @@ namespace Workforce.Controllers {
             if (ModelState.IsValid) {
                 string sql = $@"
                     INSERT INTO Student
-                        ( Id, FirstName, LastName, SlackHandle, CohortId )
+                        (FirstName, LastName, SlackHandle, CohortId )
                         VALUES
-                        ( null
-                            , '{student.FirstName}'
+                        ('{student.FirstName}'
                             , '{student.LastName}'
                             , '{student.SlackHandle}'
                             , {student.CohortId}
                         )
-                    ";
+                    ;";
 
                 using (IDbConnection conn = Connection) {
                     int rowsAffected = await conn.ExecuteAsync (sql);
@@ -138,7 +137,7 @@ namespace Workforce.Controllers {
 
             // ModelState was invalid, or saving the Student data failed. Show the form again.
             using (IDbConnection conn = Connection) {
-                IEnumerable<Cohort> cohorts = (await conn.QueryAsync<Cohort> ("SELECT Id, Name FROM Cohort")).ToList ();
+                IEnumerable<Cohort> cohorts = (await conn.QueryAsync<Cohort> ("SELECT Id, Name FROM Cohort")).ToList();
                 // ViewData["CohortId"] = new SelectList (cohorts, "Id", "Name", student.CohortId);
                 ViewData["CohortId"] = await CohortList(student.CohortId);
                 return View (student);
