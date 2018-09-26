@@ -235,25 +235,72 @@ namespace Workforce.Controllers
 
 
         // GET: Instructor/Delete/5
-        public ActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int? id)
         {
-            return View();
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            string sql = $@"
+                select
+                    i.Id,
+                    i.FirstName,
+                    i.LastName,
+                    i.SlackHandle
+                from Instructor i
+                WHERE i.Id = {id}";
+
+            using (IDbConnection conn = Connection)
+            {
+
+                Instructor instructor = (await conn.QueryAsync<Instructor>(sql)).Single();
+
+                if (instructor == null)
+                {
+                    return NotFound();
+                }
+
+                return View(instructor);
+            }
         }
 
         // POST: Instructor/Delete/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Delete(int id, IFormCollection collection)
+        public async Task<IActionResult> Delete(Instructor instructor)
         {
-            try
-            {
-                // TODO: Add delete logic here
+            string sql = "";
 
-                return RedirectToAction(nameof(Index));
-            }
-            catch
+            if (CheckStudentExercises(instructor.Id))
             {
-                return View();
+                sql = $@"DELETE FROM StudentExercise WHERE InstructorId = {instructor.Id};
+                            DELETE FROM Instructor WHERE Id = {instructor.Id};";
+            } else
+            {
+                sql = $@"DELETE FROM Instructor WHERE Id = {instructor.Id};";
+            }
+
+
+            using (IDbConnection conn = Connection)
+            {
+                int rowsAffected = await conn.ExecuteAsync(sql);
+                if (rowsAffected > 0)
+                {
+                    return RedirectToAction(nameof(Index));
+                }
+                throw new Exception("No rows affected");
+            }
+        }
+
+        public bool CheckStudentExercises (int id)
+        {
+            string sql = $"SELECT * FROM StudentExercise se WHERE se.InstructorId = {id};";
+
+            using (IDbConnection conn = Connection)
+            {
+                var results = conn.Query<StudentExercise>(sql).Count();
+                return results > 0;
             }
         }
     }
